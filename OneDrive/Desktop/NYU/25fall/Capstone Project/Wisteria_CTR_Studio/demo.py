@@ -1,0 +1,134 @@
+import argparse
+import csv
+import json
+import os
+import time
+from typing import Any, Dict, List
+
+from sampler import load_identity_bank, sample_identities
+from llm_click_model import LLMClickPredictor
+
+
+def compute_ctr(clicks: List[int]) -> float:
+    if not clicks:
+        return 0.0
+    return sum(1 for x in clicks if x) / float(len(clicks))
+
+
+def save_results_to_csv(identities: List[Dict[str, Any]], clicks: List[int], output_path: str) -> None:
+    """Save prediction results to a CSV file.
+    
+    Args:
+        identities: List of identity profiles.
+        clicks: List of corresponding click predictions (0/1).
+        output_path: Path to save the CSV file.
+    """
+    fieldnames = [
+        "id",
+        "gender",
+        "age",
+        "region",
+        "occupation",
+        "annual_salary",
+        "liability_status",
+        "is_married",
+        "health_status",
+        "illness",
+        "click",
+    ]
+    with open(output_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for i, (p, c) in enumerate(zip(identities, clicks)):
+            row = {
+                "id": i,
+                "gender": p.get("gender"),
+                "age": p.get("age"),
+                "region": p.get("region"),
+                "occupation": p.get("occupation"),
+                "annual_salary": p.get("annual_salary"),
+                "liability_status": p.get("liability_status"),
+                "is_married": p.get("is_married"),
+                "health_status": p.get("health_status"),
+                "illness": p.get("illness", ""),
+                "click": c,
+            }
+            writer.writerow(row)
+    print(f"Saved results to {output_path}")
+
+
+def main(args=None):
+    if args is None:
+        parser = argparse.ArgumentParser(description="Silicon sampling CTR demo")
+        parser.add_argument("--ad", required=True, help="Textual advertisement content")
+        parser.add_argument("--ad-platform", default="facebook", choices=["facebook", "tiktok", "amazon"], help="Platform where the ad is shown (default: facebook)")
+        parser.add_argument("--population-size", type=int, default=1000, help="Number of identities to sample")
+        parser.add_argument("--identity-bank", default=os.path.join("data", "identity_bank.json"), help="Path to identity bank JSON")
+        parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
+        parser.add_argument("--provider", default="openai", help="LLM provider (default: openai)")
+        parser.add_argument("--model", default="gpt-4o-mini", help="LLM model name")
+        parser.add_argument("--batch-size", type=int, default=50, help="Batch size per LLM call")
+        parser.add_argument("--use-mock", action="store_true", help="Force mock LLM (no network)")
+        parser.add_argument("--use-sync", action="store_true", help="Use synchronous sequential processing instead of async parallel")
+        parser.add_argument("--api-key", default=None, help="Explicit API key override for provider")
+        parser.add_argument("--out", default=None, help="Optional CSV output of identities and clicks")
+
+        args = parser.parse_args()
+
+    bank = load_identity_bank(args.identity_bank)
+    identities = sample_identities(args.population_size, bank, seed=args.seed)
+
+    predictor = LLMClickPredictor(
+        provider=args.provider,
+        model=args.model,
+        batch_size=args.batch_size,
+        use_mock=args.use_mock,
+        use_async=not args.use_sync,  
+        api_key=args.api_key,
+    )
+
+    # Start timing the prediction process
+    start_time = time.time()
+    clicks = predictor.predict_clicks(args.ad, identities, args.ad_platform)
+    end_time = time.time()
+    runtime = end_time - start_time
+    
+    ctr = compute_ctr(clicks)
+    model_provider = args.provider if not args.use_mock else "None"
+    model = args.model if not args.use_mock else "mock model (none LLM)"
+    
+    print(f"Sampled identities: {len(identities)}")
+    print(f"Ad platform: {args.ad_platform}")
+    print(f"Batch size: {args.batch_size}")
+    print(f"Model Provider: {model_provider} | Model: {model}")
+    print(f"Processing mode: {'synchronous' if args.use_sync else 'asynchronous parallel'}")
+    print(f"Clicks: {sum(clicks)} | Non-clicks: {len(clicks) - sum(clicks)}")
+    print(f"CTR: {ctr:.4f}")
+    print(f"Runtime: {runtime:.2f} seconds")
+
+    if args.out:
+        save_results_to_csv(identities, clicks, args.out)
+
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) == 1:
+        # Hardcoded parameters for quick testing when no CLI args provided
+        class Args:
+            pass
+        args = Args()
+        args.ad = '''Discover the ultimate travel experience with our exclusive vacation packages! Book now and save big on your next adventure.'''
+        args.ad_platform = "facebook"
+        args.population_size = 100
+        args.batch_size = 10
+        args.provider = "deepseek"  
+        args.model = "deepseek-chat" 
+        args.use_mock = False  
+        args.use_sync = True
+        args.identity_bank = os.path.join("data", "identity_bank.json")
+        args.seed = 42
+        args.api_key = None  
+        args.out = None  
+        main(args)
+    else:
+        main()
