@@ -1,0 +1,66 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: wisteria-ctr-studio
+  annotations:
+    run.googleapis.com/ingress: all
+    run.googleapis.com/execution-environment: gen2
+spec:
+  template:
+    metadata:
+      annotations:
+        # Allocate more memory and CPU for LLM processing
+        run.googleapis.com/memory: "2Gi"
+        run.googleapis.com/cpu: "2"
+        # Set minimum instances to reduce cold starts
+        run.googleapis.com/min-instances: "0"
+        # Set maximum instances to control costs
+        run.googleapis.com/max-instances: "10"
+        # Request timeout for long-running LLM calls
+        run.googleapis.com/timeout: "300s"
+    spec:
+      # Use service account with necessary permissions
+      serviceAccountName: cloud-run-service-account
+      containers:
+      - image: gcr.io/PROJECT_ID/wisteria-ctr-studio:latest
+        ports:
+        - containerPort: 8080
+        env:
+        # Environment variables for API keys (set via Secret Manager)
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openai-api-key
+              key: key
+        - name: DEEPSEEK_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: deepseek-api-key
+              key: key
+        # Application configuration
+        - name: PORT
+          value: "8080"
+        - name: PYTHONPATH
+          value: "/app"
+        resources:
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+          requests:
+            memory: "1Gi" 
+            cpu: "1000m"
+        # Readiness and liveness probes
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5

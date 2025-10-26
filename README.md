@@ -23,6 +23,13 @@ The project uses a modular client system for LLM providers:
 - `template_client.py`: Template for implementing new LLM provider clients
 - `llm_click_model.py`: Main predictor with provider registry and mock fallback
 - `demo.py`: CLI entry point to run experiments and compute CTR
+- `api.py`: FastAPI web service for REST API access
+- `example_client.py`: Example Python client for the REST API
+- `requirements.txt`: Python dependency specifications
+- `Dockerfile`: Container configuration for deployment
+- `DEPLOYMENT.md`: Comprehensive deployment guide
+- `deploy.sh` / `deploy.ps1`: Automated deployment scripts
+- `setup-secrets.sh`: Script for configuring API keys securely
 
 ## Supported Providers
 - **OpenAI**: GPT models (gpt-4o-mini, gpt-4, etc.)
@@ -34,7 +41,12 @@ The project uses a modular client system for LLM providers:
 ### 1. Environment Setup
 Create/activate a Python 3.10+ environment and install dependencies:
 ```bash
-pip install openai  # Required for OpenAI and DeepSeek clients
+# Install from requirements file (recommended)
+pip install -r requirements.txt
+
+# Or install manually
+pip install openai fastapi uvicorn  # Core dependencies
+# Optional: pip install pydantic  # Usually included with FastAPI
 ```
 
 ### 2. Mock Mode (No API Key Required)
@@ -110,6 +122,183 @@ The system supports different ad platforms with platform-specific context:
 - The mock predictor uses a sophisticated heuristic combining ad keywords with identity attributes
 - All providers automatically fall back to mock mode if API keys are missing or calls fail
 - The system includes runtime performance reporting and detailed result statistics
+
+## REST API Service
+
+The project includes a FastAPI web service (`api.py`) that provides REST endpoints for CTR prediction.
+
+### Starting the API Server
+```bash
+# Development server with auto-reload
+python api.py
+
+# Or using uvicorn directly
+uvicorn api:app --host 0.0.0.0 --port 8000 --reload
+```
+
+The server will start at `http://localhost:8000` with interactive documentation at `http://localhost:8000/docs`.
+
+### API Endpoints
+
+#### POST `/predict-ctr`
+Predict CTR for a single advertisement.
+
+**Request Body:**
+```json
+{
+  "ad_text": "Special 0% APR credit card offer for travel rewards",
+  "ad_platform": "facebook",
+  "population_size": 1000,
+  "provider": "openai",
+  "model": "gpt-4o-mini",
+  "use_mock": false
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "ctr": 0.247,
+  "total_clicks": 247,
+  "total_identities": 1000,
+  "runtime_seconds": 12.34,
+  "provider_used": "openai",
+  "model_used": "gpt-4o-mini",
+  "processing_mode": "asynchronous parallel",
+  "ad_platform": "facebook",
+  "timestamp": "2025-10-26T10:30:00Z"
+}
+```
+
+#### POST `/predict-ctr-batch`
+Predict CTR for multiple advertisements in batch (max 10).
+
+#### GET `/health`
+Health check endpoint.
+
+#### GET `/providers`
+List available LLM providers and supported platforms.
+
+#### GET `/`
+API information and available endpoints.
+
+### API Parameters
+- `ad_text` (required): Advertisement text to evaluate
+- `ad_platform`: Platform where ad is shown (facebook/tiktok/amazon, default: facebook)
+- `population_size`: Number of identities to sample (1-10000, default: 1000)
+- `seed`: Random seed for reproducibility (default: 42)
+- `provider`: LLM provider (openai/deepseek, default: openai)
+- `model`: Model name (uses provider default if not specified)
+- `batch_size`: Batch size per LLM call (1-200, default: 50)
+- `use_mock`: Force mock predictions (default: false)
+- `use_sync`: Use synchronous processing (default: false)
+- `api_key`: API key override
+- `identity_bank_path`: Custom identity bank path
+
+### API Usage Examples
+
+**Using curl:**
+```bash
+# Basic CTR prediction
+curl -X POST "http://localhost:8000/predict-ctr" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ad_text": "Premium coffee subscription service",
+    "ad_platform": "facebook",
+    "population_size": 500,
+    "use_mock": true
+  }'
+
+# With detailed results
+curl -X POST "http://localhost:8000/predict-ctr?include_details=true" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ad_text": "Eco-friendly cleaning products",
+    "provider": "deepseek"
+  }'
+```
+
+**Using Python requests:**
+```python
+import requests
+
+response = requests.post("http://localhost:8000/predict-ctr", json={
+    "ad_text": "New fitness app with AI personal trainer",
+    "ad_platform": "tiktok",
+    "population_size": 1000,
+    "provider": "openai",
+    "model": "gpt-4o-mini"
+})
+
+result = response.json()
+print(f"CTR: {result['ctr']}")
+```
+
+**Using the example client:**
+For more comprehensive examples, see `example_client.py`:
+```bash
+python example_client.py
+```
+
+This script demonstrates health checks, provider listing, single predictions, batch predictions, and detailed results.
+
+## Docker & Cloud Deployment
+
+The project includes comprehensive containerization and deployment support for production environments.
+
+### Docker
+
+**Build and run locally:**
+```bash
+# Build the container
+docker build -t wisteria-ctr-studio .
+
+# Run locally
+docker run -p 8080:8080 -e OPENAI_API_KEY="your-key" wisteria-ctr-studio
+
+# Access the API at http://localhost:8080
+```
+
+### Google Cloud Run (Recommended)
+
+**Quick deployment:**
+```bash
+# Linux/Mac
+./deploy.sh YOUR_PROJECT_ID us-central1
+
+# Windows PowerShell  
+.\deploy.ps1 -ProjectId "YOUR_PROJECT_ID" -Region "us-central1"
+```
+
+**Features:**
+- **Serverless**: Automatic scaling from 0 to 10 instances
+- **Cost-effective**: Pay only for actual usage
+- **Secure**: API keys stored in Secret Manager
+- **Production-ready**: Health checks, monitoring, logging
+- **High-performance**: 2 vCPU, 2 GiB memory, 300s timeout
+
+**Manual deployment:**
+```bash
+# Build and deploy
+gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/wisteria-ctr-studio
+gcloud run deploy wisteria-ctr-studio --image gcr.io/YOUR_PROJECT_ID/wisteria-ctr-studio
+
+# Set up API keys
+gcloud secrets create openai-api-key --data-file=-
+gcloud run services update wisteria-ctr-studio --update-secrets="OPENAI_API_KEY=openai-api-key:latest"
+```
+
+### Other Platforms
+
+The Docker container can be deployed to:
+- **AWS ECS/Fargate**: Container orchestration
+- **Azure Container Instances**: Serverless containers  
+- **Kubernetes**: On any cloud or on-premises
+- **DigitalOcean App Platform**: Simple container hosting
+- **Heroku**: With container registry
+
+See `DEPLOYMENT.md` for detailed deployment instructions, troubleshooting, and production configuration.
 
 ## Adding New LLM Providers
 
