@@ -9,7 +9,7 @@ set -e
 PROJECT_ID=${1:-"wisteria-ctr-studio"}
 REGION=${2:-"us-central1"}
 SERVICE_NAME="wisteria-ctr-studio"
-IMAGE_NAME="gcr.io/${PROJECT_ID}/${SERVICE_NAME}"
+IMAGE_NAME="us-central1-docker.pkg.dev/${PROJECT_ID}/wisteria-repo/${SERVICE_NAME}"
 
 echo "🚀 Deploying Wisteria CTR Studio to Google Cloud Run"
 echo "Project: ${PROJECT_ID}"
@@ -33,6 +33,14 @@ echo "🔧 Enabling required APIs..."
 gcloud services enable cloudbuild.googleapis.com
 gcloud services enable run.googleapis.com
 gcloud services enable containerregistry.googleapis.com
+gcloud services enable artifactregistry.googleapis.com
+
+# Create Artifact Registry repository if it doesn't exist
+echo "🔧 Setting up Artifact Registry repository..."
+gcloud artifacts repositories create wisteria-repo \
+    --repository-format=docker \
+    --location=us-central1 \
+    --description="Docker repo for Wisteria CTR Studio"
 
 # Build and push container image
 echo "🏗️  Building container image..."
