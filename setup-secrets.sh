@@ -31,12 +31,12 @@ create_or_update_secret() {
         echo "Creating secret ${secret_name}..."
         gcloud secrets create ${secret_name} \
             --replication-policy="automatic" \
-            --data-file="-" \
             --labels="service=${SERVICE_NAME}"
     fi
     
     echo "Please enter the ${secret_description}:"
     read -s secret_value
+    echo  # newline for readability
     
     if [ -n "$secret_value" ]; then
         echo "Updating secret value..."
