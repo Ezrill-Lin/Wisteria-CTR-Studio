@@ -5,7 +5,7 @@
 
 set -e
 
-PROJECT_ID=${1:-"your-gcp-project-id"}
+PROJECT_ID=${1:-"wisteria-ctr-studio"}
 REGION=${2:-"us-central1"}
 SERVICE_NAME="wisteria-ctr-studio"
 
