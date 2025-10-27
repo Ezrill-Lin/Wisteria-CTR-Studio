@@ -54,7 +54,7 @@ The following flowchart illustrates the complete working structure of the Wister
                                     │
                                     ▼
        ┌────────────────────────────────────────────────────────────┐
-       │ 5. Persona Simulation Layer (Big Five Personality Agents) │
+       │ 5. Persona Simulation Layer (Big Five Personality Agents)  │
        └────────────────────────────────────────────────────────────┘
            │          │          │          │          │
            ▼          ▼          ▼          ▼          ▼
@@ -62,7 +62,7 @@ The following flowchart illustrates the complete working structure of the Wister
 │ Openness     ││ Conscientious││ Extraversion ││ Agreeableness││ Neuroticism  │
 │ Agent        ││ Agent        ││ Agent        ││ Agent        ││ Agent        │
 └──────────────┘└──────────────┘└──────────────┘└──────────────┘└──────────────┘
-           │          │          │          │          │
+           │          │          │          │          │          │
            └──────────┴──────────┴──────────┴──────────┴──────────┘
                                     │
                                     ▼
@@ -87,12 +87,11 @@ The following flowchart illustrates the complete working structure of the Wister
                  └────────────────────────────────────┘
                                     │
                                     ▼
-                 ┌────────────────────────┐
-                 │ 9. Visualization Layer │
-                 │ (CTR dashboard, persona│
-                 │  breakdown, platform   │
-                 │  comparisons, etc.)    │
-                 └────────────────────────┘
+                 ┌────────────────────────────────────┐
+                 │ 9. Visualization Layer             │
+                 │ (CTR dashboard, persona breakdown, │
+                 │   platform comparisons, etc.)      │
+                 └────────────────────────────────────┘
 ```
 
 ## Files
