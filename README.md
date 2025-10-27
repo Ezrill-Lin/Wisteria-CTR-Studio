@@ -14,6 +14,87 @@ The project uses a modular client system for LLM providers:
 - **Registry System**: Dynamic provider registration in `llm_click_model.py`
 - **Extensibility**: Easy to add new providers using the template client
 
+## System Workflow
+The following flowchart illustrates the complete working structure of the Wisteria CTR Studio web application:
+
+```
+                          ┌──────────────────────┐
+                          │ 1. Ad Ingestion Layer│
+                          └──────────────────────┘
+                                    │
+      ┌─────────────────────────────┼─────────────────────────────┐
+      │                             │                             │
+┌──────────────┐           ┌────────────────┐            ┌────────────────┐
+│ Textual Ads  │           │ Graphic Ads    │            │ Video Ads      │
+└──────────────┘           └────────────────┘            └────────────────┘
+      │                             │                             │
+      └─────────────────────────────┴─────────────────────────────┘
+                                    │
+                                    ▼
+                       ┌────────────────────────┐
+                       │2. Simulated Ad Platform│
+                       │(e.g., mock webpage sim │
+                       │of Facebook/TikTok etc.)│
+                       └────────────────────────┘
+                                    │
+                                    ▼
+                       ┌────────────────────────┐
+                       │3. Data Conversion Agent│
+                       │(OCR + Text Extractor   │
+                       │ + Metadata Parser)     │
+                       └────────────────────────┘
+                                    │
+                                    ▼
+                       ┌──────────────────────┐
+                       │ 4. Prompt Generator  │
+                       │ (Combines extracted  │
+                       │  text + platform ctx │
+                       │  + ad metadata)      │
+                       └──────────────────────┘
+                                    │
+                                    ▼
+       ┌────────────────────────────────────────────────────────────┐
+       │ 5. Persona Simulation Layer (Big Five Personality Agents) │
+       └────────────────────────────────────────────────────────────┘
+           │          │          │          │          │
+           ▼          ▼          ▼          ▼          ▼
+┌──────────────┐┌──────────────┐┌──────────────┐┌──────────────┐┌──────────────┐
+│ Openness     ││ Conscientious││ Extraversion ││ Agreeableness││ Neuroticism  │
+│ Agent        ││ Agent        ││ Agent        ││ Agent        ││ Agent        │
+└──────────────┘└──────────────┘└──────────────┘└──────────────┘└──────────────┘
+           │          │          │          │          │
+           └──────────┴──────────┴──────────┴──────────┴──────────┘
+                                    │
+                                    ▼
+                 ┌────────────────────────────────────┐
+                 │ 6. Response Aggregator             │
+                 │ (Collects persona outputs, merges  │
+                 │  descriptive paragraphs + features)│
+                 └────────────────────────────────────┘
+                                    │
+                                    ▼
+                 ┌────────────────────────────────────┐
+                 │ 7. Synthetic Population Integrator │
+                 │ (Combines persona results with     │
+                 │  demographic data from Identity Bank)│
+                 └────────────────────────────────────┘
+                                    │
+                                    ▼
+                 ┌────────────────────────────────────┐
+                 │ 8. CTR Prediction Agent            │
+                 │ (Generates final predicted CTR     │
+                 │  values for given ad/platform)     │
+                 └────────────────────────────────────┘
+                                    │
+                                    ▼
+                 ┌────────────────────────┐
+                 │ 9. Visualization Layer │
+                 │ (CTR dashboard, persona│
+                 │  breakdown, platform   │
+                 │  comparisons, etc.)    │
+                 └────────────────────────┘
+```
+
 ## Files
 - `data/identity_bank.json`: Identity category definitions and sampling distributions
 - `sampler.py`: Sampling utilities to generate synthetic identities
@@ -27,10 +108,13 @@ The project uses a modular client system for LLM providers:
 - `example_client.py`: Example Python client for the REST API
 - `test_gcs.py`: Test script for Google Cloud Storage integration
 - `requirements.txt`: Python dependency specifications
-- `Dockerfile`: Container configuration for deployment
-- `DEPLOYMENT.md`: Comprehensive deployment guide
-- `deploy.sh` / `deploy.ps1`: Automated deployment scripts
-- `setup-secrets.sh`: Script for configuring API keys securely
+- `deploy/`: Complete deployment configuration and scripts
+  - `Dockerfile`: Container configuration for deployment
+  - `DEPLOYMENT.md`: Comprehensive deployment guide  
+  - `deploy.sh` / `deploy.ps1`: Automated deployment scripts
+  - `setup-secrets.sh`: Script for configuring API keys securely
+  - `cloud-run-service.yaml`: Cloud Run service configuration
+  - `.dockerignore`: Docker build context exclusions
 
 ## Supported Providers
 - **OpenAI**: GPT models (gpt-4o-mini, gpt-4, etc.)
@@ -182,10 +266,33 @@ Health check endpoint.
 List available LLM providers and supported platforms.
 
 #### GET `/identities`
-Get the current identity bank configuration, including all categories and distributions.
+Get the current identity bank configuration and data source information.
+
+**Response:**
+```json
+{
+  "success": true,
+  "identity_bank": { /* full identity bank structure */ },
+  "source": "gcs",  // or "local"
+  "timestamp": "2025-10-27T10:30:00Z"
+}
+```
 
 #### POST `/identities/reload`
-Reload the identity bank from the data source (Google Cloud Storage or local file).
+Force reload of the identity bank from data source (GCS or local file).
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Identity bank reloaded from Google Cloud Storage",
+  "source": "gcs",
+  "timestamp": "2025-10-27T10:30:00Z"
+}
+```
+
+#### GET `/health`
+Health check endpoint with system status and available providers.
 
 #### GET `/`
 API information and available endpoints.
@@ -303,42 +410,60 @@ The project includes comprehensive containerization and deployment support for p
 
 **Build and run locally:**
 ```bash
-# Build the container
-docker build -t wisteria-ctr-studio .
+# Build the container (Dockerfile is in deploy/ folder)
+docker build -f deploy/Dockerfile -t wisteria-ctr-studio .
 
-# Run locally
-docker run -p 8080:8080 -e OPENAI_API_KEY="your-key" wisteria-ctr-studio
+# Run locally with environment variables
+docker run -p 8080:8080 \
+  -e OPENAI_API_KEY="your-key" \
+  -e GCS_BUCKET_NAME="your-bucket" \
+  wisteria-ctr-studio
 
 # Access the API at http://localhost:8080
 ```
+
+**Container Features:**
+- **Optimized**: Python 3.11 slim base image for minimal size
+- **Secure**: Non-root user execution
+- **Health checks**: Built-in health monitoring (30s startup grace period)
+- **Performance**: Direct uvicorn server for optimal async performance
 
 ### Google Cloud Run (Recommended)
 
 **Quick deployment:**
 ```bash
-# Linux/Mac
-./deploy.sh YOUR_PROJECT_ID us-central1
+# Linux/Mac (uses Artifact Registry)
+./deploy/deploy.sh wisteria-ctr-studio us-central1
 
 # Windows PowerShell  
-.\deploy.ps1 -ProjectId "YOUR_PROJECT_ID" -Region "us-central1"
+.\deploy\deploy.ps1 -ProjectId "wisteria-ctr-studio" -Region "us-central1"
 ```
 
 **Features:**
+- **Modern Registry**: Uses Google Artifact Registry (not deprecated Container Registry)
 - **Serverless**: Automatic scaling from 0 to 10 instances
 - **Cost-effective**: Pay only for actual usage
-- **Secure**: API keys stored in Secret Manager
+- **Secure**: API keys stored in Secret Manager, GCS integration
 - **Production-ready**: Health checks, monitoring, logging
 - **High-performance**: 2 vCPU, 2 GiB memory, 300s timeout
 
-**Manual deployment:**
+**Manual deployment with Artifact Registry:**
 ```bash
-# Build and deploy
-gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/wisteria-ctr-studio
-gcloud run deploy wisteria-ctr-studio --image gcr.io/YOUR_PROJECT_ID/wisteria-ctr-studio
+# Enable APIs and create repository
+gcloud services enable artifactregistry.googleapis.com
+gcloud artifacts repositories create wisteria-repo \
+  --repository-format=docker --location=us-central1
 
-# Set up API keys
+# Build and deploy
+gcloud builds submit --tag us-central1-docker.pkg.dev/YOUR_PROJECT_ID/wisteria-repo/wisteria-ctr-studio
+gcloud run deploy wisteria-ctr-studio \
+  --image us-central1-docker.pkg.dev/YOUR_PROJECT_ID/wisteria-repo/wisteria-ctr-studio
+
+# Set up API keys and GCS
 gcloud secrets create openai-api-key --data-file=-
-gcloud run services update wisteria-ctr-studio --update-secrets="OPENAI_API_KEY=openai-api-key:latest"
+gcloud run services update wisteria-ctr-studio \
+  --update-secrets="OPENAI_API_KEY=openai-api-key:latest" \
+  --update-env-vars="GCS_BUCKET_NAME=your-bucket-name"
 ```
 
 ### Other Platforms
