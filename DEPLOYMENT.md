@@ -68,6 +68,28 @@ The service supports these environment variables:
 - `OPENAI_API_KEY`: OpenAI API key
 - `DEEPSEEK_API_KEY`: DeepSeek API key
 - `PYTHONPATH`: Python path (set to /app)
+- `GCS_BUCKET_NAME`: Google Cloud Storage bucket for identity bank (default: "wisteria-data-bucket")
+- `GCS_IDENTITY_BANK_PATH`: Path to identity bank file in GCS (default: "data/identity_bank.json")
+
+### Google Cloud Storage Setup (Optional)
+
+Set up Google Cloud Storage for dynamic identity bank management:
+
+```bash
+# Create a bucket for data storage
+gsutil mb gs://your-wisteria-bucket
+
+# Upload identity bank to GCS
+gsutil cp data/identity_bank.json gs://your-wisteria-bucket/data/identity_bank.json
+
+# Set bucket permissions
+gsutil iam ch serviceAccount:cloud-run-service-account@YOUR_PROJECT_ID.iam.gserviceaccount.com:objectViewer gs://your-wisteria-bucket
+
+# Configure environment variables
+gcloud run services update wisteria-ctr-studio \
+    --update-env-vars GCS_BUCKET_NAME=your-wisteria-bucket \
+    --update-env-vars GCS_IDENTITY_BANK_PATH=data/identity_bank.json
+```
 
 ### Secret Manager (Recommended)
 

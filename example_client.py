@@ -32,6 +32,18 @@ class CTRApiClient:
         response.raise_for_status()
         return response.json()
     
+    def get_identities(self) -> Dict[str, Any]:
+        """Get the identity bank configuration."""
+        response = requests.get(f"{self.base_url}/identities")
+        response.raise_for_status()
+        return response.json()
+    
+    def reload_identities(self) -> Dict[str, Any]:
+        """Reload the identity bank from the data source."""
+        response = requests.post(f"{self.base_url}/identities/reload")
+        response.raise_for_status()
+        return response.json()
+    
     def predict_ctr(
         self,
         ad_text: str,
@@ -117,6 +129,23 @@ def main():
         print("Available providers:")
         for provider, info in providers["available_providers"].items():
             print(f"  - {provider}: {info['description']} (default: {info['default_model']})")
+        print(f"Supported platforms: {', '.join(providers['platforms'])}")
+        print()
+        
+        # Get identity bank information
+        print("Getting identity bank information...")
+        try:
+            identities = client.get_identities()
+            print(f"Identity bank loaded from: {identities.get('source', 'unknown')}")
+            bank = identities['identity_bank']
+            print("Available identity categories:")
+            for category in bank.keys():
+                print(f"  - {category}")
+            print()
+        except Exception as e:
+            print(f"Could not load identity bank: {e}")
+            print()
+        
         print(f"Supported platforms: {', '.join(providers['platforms'])}")
         print()
         

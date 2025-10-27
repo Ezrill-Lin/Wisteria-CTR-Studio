@@ -25,6 +25,7 @@ The project uses a modular client system for LLM providers:
 - `demo.py`: CLI entry point to run experiments and compute CTR
 - `api.py`: FastAPI web service for REST API access
 - `example_client.py`: Example Python client for the REST API
+- `test_gcs.py`: Test script for Google Cloud Storage integration
 - `requirements.txt`: Python dependency specifications
 - `Dockerfile`: Container configuration for deployment
 - `DEPLOYMENT.md`: Comprehensive deployment guide
@@ -180,8 +181,59 @@ Health check endpoint.
 #### GET `/providers`
 List available LLM providers and supported platforms.
 
+#### GET `/identities`
+Get the current identity bank configuration, including all categories and distributions.
+
+#### POST `/identities/reload`
+Reload the identity bank from the data source (Google Cloud Storage or local file).
+
 #### GET `/`
 API information and available endpoints.
+
+## Google Cloud Storage Integration
+
+The API supports loading identity banks from Google Cloud Storage for flexible data management and easy updates without redeploying the service.
+
+### Configuration
+
+Set these environment variables:
+- `GCS_BUCKET_NAME`: Your Google Cloud Storage bucket name (default: "wisteria-data-bucket")
+- `GCS_IDENTITY_BANK_PATH`: Path to the identity bank file in the bucket (default: "data/identity_bank.json")
+
+### Data Source Priority
+
+The API uses this priority order for loading identity banks:
+1. **Custom path**: If specified in the request (`identity_bank_path` parameter)
+2. **Cached version**: Previously loaded identity bank stored in memory
+3. **Local file**: `data/identity_bank.json` in the application directory
+4. **Google Cloud Storage**: Remote file from the configured GCS bucket
+
+### Setup GCS Identity Bank
+
+1. **Upload your identity bank to GCS:**
+```bash
+gsutil cp data/identity_bank.json gs://your-bucket/data/identity_bank.json
+```
+
+2. **Set environment variables:**
+```bash
+export GCS_BUCKET_NAME="your-bucket"
+export GCS_IDENTITY_BANK_PATH="data/identity_bank.json"
+```
+
+3. **Ensure proper permissions:**
+The service account needs `Storage Object Viewer` role for the bucket.
+
+### Dynamic Reloading
+
+Update the identity bank without restarting the service:
+```bash
+# Upload new identity bank to GCS
+gsutil cp updated_identity_bank.json gs://your-bucket/data/identity_bank.json
+
+# Reload via API
+curl -X POST "https://your-service-url/identities/reload"
+```
 
 ### API Parameters
 - `ad_text` (required): Advertisement text to evaluate

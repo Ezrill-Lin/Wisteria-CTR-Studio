@@ -6,6 +6,8 @@ allowing users to predict click-through rates via HTTP requests.
 
 import os
 import time
+import json
+import io
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
@@ -13,6 +15,13 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel, Field
 import uvicorn
+
+# Google Cloud Storage for identity bank loading
+try:
+    from google.cloud import storage
+    GCS_AVAILABLE = True
+except ImportError:
+    GCS_AVAILABLE = False
 
 from sampler import load_identity_bank, sample_identities
 from llm_click_model import LLMClickPredictor
@@ -126,6 +135,120 @@ DEFAULT_IDENTITY_BANK_PATH = os.path.join("data", "identity_bank.json")
 AVAILABLE_PROVIDERS = ["openai", "deepseek"]
 AVAILABLE_PLATFORMS = ["facebook", "tiktok", "amazon"]
 
+# Google Cloud Storage configuration
+GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "wisteria-data-bucket")
+GCS_IDENTITY_BANK_PATH = os.getenv("GCS_IDENTITY_BANK_PATH", "data/identity_bank.json")
+
+# Application state for caching identity bank
+app.state.identity_bank = None
+app.state.gcs_client = None
+
+
+def load_identity_bank_from_gcs():
+    """Load identity bank from Google Cloud Storage."""
+    if not GCS_AVAILABLE:
+        raise HTTPException(
+            status_code=500,
+            detail="Google Cloud Storage client not available. Install with: pip install google-cloud-storage"
+        )
+    
+    try:
+        if app.state.gcs_client is None:
+            app.state.gcs_client = storage.Client()
+        
+        bucket = app.state.gcs_client.bucket(GCS_BUCKET_NAME)
+        blob = bucket.blob(GCS_IDENTITY_BANK_PATH)
+        
+        if not blob.exists():
+            raise HTTPException(
+                status_code=404,
+                detail=f"Identity bank file not found in GCS: gs://{GCS_BUCKET_NAME}/{GCS_IDENTITY_BANK_PATH}"
+            )
+        
+        content = blob.download_as_text()
+        return json.loads(content)
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to load identity bank from GCS: {str(e)}"
+        )
+
+
+def get_identity_bank(identity_bank_path: Optional[str] = None):
+    """Get identity bank from cache, local file, or GCS."""
+    # If a specific path is requested, load from local file
+    if identity_bank_path and identity_bank_path != DEFAULT_IDENTITY_BANK_PATH:
+        if not os.path.exists(identity_bank_path):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Identity bank file not found: {identity_bank_path}"
+            )
+        return load_identity_bank(identity_bank_path)
+    
+    # Try to use cached version first
+    if app.state.identity_bank is not None:
+        return app.state.identity_bank
+    
+    # Try loading from local file
+    if os.path.exists(DEFAULT_IDENTITY_BANK_PATH):
+        try:
+            return load_identity_bank(DEFAULT_IDENTITY_BANK_PATH)
+        except Exception:
+            pass  # Fall back to GCS
+    
+    # Load from GCS if local file not available
+    if GCS_AVAILABLE:
+        try:
+            return load_identity_bank_from_gcs()
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to load identity bank from any source: {str(e)}"
+            )
+    
+    # No identity bank available
+    raise HTTPException(
+        status_code=500,
+        detail="No identity bank available. Please ensure either local file exists or GCS is configured."
+    )
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize application on startup."""
+    try:
+        # Try to preload identity bank for better performance
+        if GCS_AVAILABLE:
+            try:
+                app.state.identity_bank = load_identity_bank_from_gcs()
+                print(f"✅ Identity bank loaded from GCS: gs://{GCS_BUCKET_NAME}/{GCS_IDENTITY_BANK_PATH}")
+            except Exception as e:
+                print(f"⚠️  Could not preload from GCS: {e}")
+        
+        # Fallback to local file
+        if app.state.identity_bank is None and os.path.exists(DEFAULT_IDENTITY_BANK_PATH):
+            try:
+                app.state.identity_bank = load_identity_bank(DEFAULT_IDENTITY_BANK_PATH)
+                print(f"✅ Identity bank loaded from local file: {DEFAULT_IDENTITY_BANK_PATH}")
+            except Exception as e:
+                print(f"⚠️  Could not load local identity bank: {e}")
+        
+        if app.state.identity_bank is None:
+            print("⚠️  No identity bank loaded at startup. Will attempt to load on first request.")
+        
+    except Exception as e:
+        print(f"❌ Startup error: {e}")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup on application shutdown."""
+    app.state.identity_bank = None
+    app.state.gcs_client = None
+
 
 def compute_ctr(clicks: List[int]) -> float:
     """Compute click-through rate from binary predictions."""
@@ -200,15 +323,8 @@ async def predict_ctr(request: CTRRequest, include_details: bool = False):
         # Validate request
         validate_request(request)
         
-        # Load identity bank
-        identity_bank_path = request.identity_bank_path or DEFAULT_IDENTITY_BANK_PATH
-        if not os.path.exists(identity_bank_path):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Identity bank file not found: {identity_bank_path}"
-            )
-        
-        bank = load_identity_bank(identity_bank_path)
+        # Load identity bank (from cache, local file, or GCS)
+        bank = get_identity_bank(request.identity_bank_path)
         
         # Generate synthetic identities
         identities = sample_identities(
@@ -337,6 +453,78 @@ async def list_providers():
     }
 
 
+@app.get("/identities")
+async def get_identities():
+    """Get the identity bank configuration.
+    
+    Returns the complete identity bank structure including all categories,
+    distributions, and sampling parameters.
+    """
+    try:
+        bank = get_identity_bank()
+        return {
+            "success": True,
+            "identity_bank": bank,
+            "source": "gcs" if app.state.identity_bank and GCS_AVAILABLE else "local",
+            "timestamp": datetime.utcnow().isoformat() + "Z"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to retrieve identity bank: {str(e)}"
+        )
+
+
+@app.post("/identities/reload")
+async def reload_identities():
+    """Reload the identity bank from the data source.
+    
+    Forces a fresh load of the identity bank, bypassing any cached version.
+    Useful for updating the configuration without restarting the service.
+    """
+    try:
+        # Clear cached version
+        app.state.identity_bank = None
+        
+        # Try to reload from GCS first
+        if GCS_AVAILABLE:
+            try:
+                app.state.identity_bank = load_identity_bank_from_gcs()
+                return {
+                    "success": True,
+                    "message": "Identity bank reloaded from Google Cloud Storage",
+                    "source": "gcs",
+                    "timestamp": datetime.utcnow().isoformat() + "Z"
+                }
+            except Exception as e:
+                print(f"Failed to reload from GCS: {e}")
+        
+        # Fallback to local file
+        if os.path.exists(DEFAULT_IDENTITY_BANK_PATH):
+            app.state.identity_bank = load_identity_bank(DEFAULT_IDENTITY_BANK_PATH)
+            return {
+                "success": True,
+                "message": "Identity bank reloaded from local file",
+                "source": "local",
+                "timestamp": datetime.utcnow().isoformat() + "Z"
+            }
+        
+        raise HTTPException(
+            status_code=404,
+            detail="No identity bank source available for reload"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to reload identity bank: {str(e)}"
+        )
+
+
 @app.get("/")
 async def root():
     """Root endpoint with API information."""
@@ -349,6 +537,8 @@ async def root():
             "predict": "/predict-ctr",
             "batch_predict": "/predict-ctr-batch", 
             "providers": "/providers",
+            "identities": "/identities",
+            "reload_identities": "/identities/reload",
             "docs": "/docs"
         }
     }
