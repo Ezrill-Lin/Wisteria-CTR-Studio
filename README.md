@@ -18,9 +18,9 @@ The project uses a modular client system for LLM providers:
 The following flowchart illustrates the complete working structure of the Wisteria CTR Studio web application:
 
 ```
-                          ┌──────────────────────┐
-                          │ 1. Ad Ingestion Layer│
-                          └──────────────────────┘
+                        ┌───────────────────────┐
+                        │ 1. Ad Ingestion Layer │
+                        └───────────────────────┘
                                     │
       ┌─────────────────────────────┼─────────────────────────────┐
       │                             │                             │
