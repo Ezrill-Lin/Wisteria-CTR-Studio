@@ -36,11 +36,21 @@ gcloud services enable containerregistry.googleapis.com
 gcloud services enable artifactregistry.googleapis.com
 
 # Create Artifact Registry repository if it doesn't exist
-echo "🔧 Setting up Artifact Registry repository..."
-gcloud artifacts repositories create wisteria-repo \
-    --repository-format=docker \
-    --location=us-central1 \
-    --description="Docker repo for Wisteria CTR Studio"
+echo "🔧 Checking Artifact Registry repository..."
+if gcloud artifacts repositories describe wisteria-repo --location=us-central1 >/dev/null 2>&1; then
+    echo "✅ Repository 'wisteria-repo' already exists. Skipping creation."
+else
+    echo "📦 Creating Artifact Registry repository 'wisteria-repo'..."
+    gcloud artifacts repositories create wisteria-repo \
+        --repository-format=docker \
+        --location=us-central1 \
+        --description="Docker repo for Wisteria CTR Studio"
+fi
+
+# Authenticate Docker with Artifact Registry
+echo "🔐 Authenticating Docker with Artifact Registry..."
+gcloud auth configure-docker us-central1-docker.pkg.dev
+
 
 # Build and push container image
 echo "🏗️  Building container image..."
