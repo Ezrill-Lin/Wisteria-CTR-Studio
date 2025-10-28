@@ -30,12 +30,12 @@ from llm_click_model import LLMClickPredictor
 # Pydantic models for request/response validation
 class CTRRequest(BaseModel):
     """Request model for CTR prediction."""
-    ad_text: str = Field(..., description="Advertisement text to evaluate", min_length=1)
+    ad_text: str = Field(default="Special 0% APR credit card offer for travel rewards", description="Advertisement text to evaluate", min_length=1)
     ad_platform: str = Field(default="facebook", description="Platform where ad is shown")
-    population_size: int = Field(default=1000, description="Number of identities to sample", ge=1, le=10000)
+    population_size: int = Field(default=1000, description="Number of identities to sample", ge=1, le=1e8)
     seed: Optional[int] = Field(default=42, description="Random seed for reproducibility")
     provider: str = Field(default="openai", description="LLM provider to use")
-    model: Optional[str] = Field(default=None, description="Model name (uses provider default if not specified)")
+    model: Optional[str] = Field(default="gpt-5-mini", description="Model name (uses provider default if not specified)")
     batch_size: int = Field(default=50, description="Batch size per LLM call", ge=1, le=200)
     use_mock: bool = Field(default=False, description="Force mock predictions")
     use_sync: bool = Field(default=False, description="Use synchronous processing")
@@ -177,8 +177,56 @@ def load_identity_bank_from_gcs():
 
 def get_identity_bank(identity_bank_path: Optional[str] = None):
     """Get identity bank from cache, local file, or GCS."""
-    # If a specific path is requested, load from local file
+    # If no specific path requested, try cached version first (most common case)
+    if identity_bank_path is None:
+        if app.state.identity_bank is not None:
+            return app.state.identity_bank
+        # Fall through to default loading logic below
+    
+    # If a specific path is requested, handle GCS URLs and local files
     if identity_bank_path and identity_bank_path != DEFAULT_IDENTITY_BANK_PATH:
+        # Handle GCS URLs
+        if identity_bank_path.startswith("gs://"):
+            if not GCS_AVAILABLE:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Google Cloud Storage client not available. Install with: pip install google-cloud-storage"
+                )
+            try:
+                # Parse GCS URL: gs://bucket/path
+                parts = identity_bank_path[5:].split('/', 1)  # Remove 'gs://' and split
+                if len(parts) != 2:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Invalid GCS URL format: {identity_bank_path}"
+                    )
+                
+                bucket_name, blob_path = parts
+                
+                if app.state.gcs_client is None:
+                    app.state.gcs_client = storage.Client()
+                
+                bucket = app.state.gcs_client.bucket(bucket_name)
+                blob = bucket.blob(blob_path)
+                
+                if not blob.exists():
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Identity bank file not found in GCS: {identity_bank_path}"
+                    )
+                
+                content = blob.download_as_text()
+                return json.loads(content)
+                
+            except Exception as e:
+                if isinstance(e, HTTPException):
+                    raise
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to load identity bank from GCS: {str(e)}"
+                )
+        
+        # Handle local file paths
         if not os.path.exists(identity_bank_path):
             raise HTTPException(
                 status_code=400,
