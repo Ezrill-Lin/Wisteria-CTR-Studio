@@ -62,7 +62,8 @@ gcloud auth configure-docker us-central1-docker.pkg.dev
 
 # Build and push container image
 echo "🏗️  Building container image..."
-gcloud builds submit --tag ${IMAGE_NAME} --file deploy/Dockerfile .
+docker build -f deploy/Dockerfile -t ${IMAGE_NAME} .
+docker push ${IMAGE_NAME}
 
 # Deploy to Cloud Run
 echo "🚀 Deploying to Cloud Run..."
