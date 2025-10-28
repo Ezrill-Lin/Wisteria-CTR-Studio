@@ -40,7 +40,7 @@ class CTRRequest(BaseModel):
     use_mock: bool = Field(default=False, description="Force mock predictions")
     use_sync: bool = Field(default=False, description="Use synchronous processing")
     api_key: Optional[str] = Field(default=None, description="API key override")
-    identity_bank_path: Optional[str] = Field(default=None, description="Custom identity bank path")
+    identity_bank_path: Optional[str] = Field(default="", description="Custom identity bank path")
 
     class Config:
         schema_extra = {
