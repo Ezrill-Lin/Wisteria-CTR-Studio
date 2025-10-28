@@ -5,6 +5,13 @@
 
 set -e
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Change to project root directory
+cd "$PROJECT_ROOT"
+
 # Configuration
 PROJECT_ID=${1:-"wisteria-ctr-studio"}
 REGION=${2:-"us-central1"}
@@ -12,6 +19,7 @@ SERVICE_NAME="wisteria-ctr-studio"
 IMAGE_NAME="us-central1-docker.pkg.dev/${PROJECT_ID}/wisteria-repo/${SERVICE_NAME}"
 
 echo "🚀 Deploying Wisteria CTR Studio to Google Cloud Run"
+echo "Project Root: ${PROJECT_ROOT}"
 echo "Project: ${PROJECT_ID}"
 echo "Region: ${REGION}"
 echo "Service: ${SERVICE_NAME}"
@@ -54,7 +62,7 @@ gcloud auth configure-docker us-central1-docker.pkg.dev
 
 # Build and push container image
 echo "🏗️  Building container image..."
-gcloud builds submit --tag ${IMAGE_NAME}
+gcloud builds submit --tag ${IMAGE_NAME} --file deploy/Dockerfile .
 
 # Deploy to Cloud Run
 echo "🚀 Deploying to Cloud Run..."
