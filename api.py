@@ -396,11 +396,20 @@ async def predict_ctr(request: CTRRequest, include_details: bool = False):
         
         # Predict clicks
         start_time = time.time()
-        clicks = predictor.predict_clicks(
-            request.ad_text, 
-            identities, 
-            request.ad_platform
-        )
+        if not request.use_sync and not request.use_mock:
+            # Use async processing - await the async method directly
+            clicks = await predictor.predict_clicks_async(
+                request.ad_text, 
+                identities, 
+                request.ad_platform
+            )
+        else:
+            # Use sync processing or mock
+            clicks = predictor.predict_clicks(
+                request.ad_text, 
+                identities, 
+                request.ad_platform
+            )
         end_time = time.time()
         runtime = end_time - start_time
         

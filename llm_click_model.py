@@ -167,14 +167,10 @@ class LLMClickPredictor:
             return clicks
 
         # Real calls in batches
-        if self.use_async:
-            # Use async parallel processing for better performance
-            return asyncio.run(self.predict_clicks_async(ad_text, profiles, ad_platform))
-        else:
-            # Use synchronous sequential processing
-            for chunk in _chunked(profiles, self.batch_size):
-                clicks.extend(self._client.predict_chunk(ad_text, chunk, ad_platform))
-            return clicks
+        # Use synchronous sequential processing only
+        for chunk in _chunked(profiles, self.batch_size):
+            clicks.extend(self._client.predict_chunk(ad_text, chunk, ad_platform))
+        return clicks
 
 
 async def predict_clicks_parallel(predictor: LLMClickPredictor, ad_text: str, profiles: List[Dict[str, Any]], ad_platform: str = "facebook") -> List[int]:

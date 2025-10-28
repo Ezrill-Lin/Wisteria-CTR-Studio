@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import csv
 import json
 import os
@@ -83,13 +84,21 @@ def main(args=None):
         model=args.model,
         batch_size=args.batch_size,
         use_mock=args.use_mock,
-        use_async=not args.use_sync,  
+        use_async=True,  # Keep this True since we handle sync/async at call level
         api_key=args.api_key,
     )
 
     # Start timing the prediction process
     start_time = time.time()
-    clicks = predictor.predict_clicks(args.ad, identities, args.ad_platform)
+    
+    # Choose between async and sync processing
+    if args.use_sync:
+        # Use synchronous sequential processing
+        clicks = predictor.predict_clicks(args.ad, identities, args.ad_platform)
+    else:
+        # Use asynchronous parallel processing
+        clicks = asyncio.run(predictor.predict_clicks_async(args.ad, identities, args.ad_platform))
+    
     end_time = time.time()
     runtime = end_time - start_time
     
@@ -124,7 +133,7 @@ if __name__ == "__main__":
         args.provider = "deepseek"  
         args.model = "deepseek-chat" 
         args.use_mock = False  
-        args.use_sync = True
+        args.use_sync = False
         args.identity_bank = os.path.join("data", "identity_bank.json")
         args.seed = 42
         args.api_key = None  
