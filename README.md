@@ -19,26 +19,37 @@ The following flowchart illustrates the complete working structure of the Wister
 
 ![Wisteria CTR Studio Workflow](workflow.png)
 
-## Files
+## Project Structure
+
+### **SiliconSampling/** - Synthetic Population Generation Package
+- `sampler.py`: Core sampling utilities and identity bank loading functions
 - `data/identity_bank.json`: Identity category definitions and sampling distributions
-- `sampler.py`: Sampling utilities to generate synthetic identities
+- `__init__.py`: Package initialization and exports
+
+### **CTRPrediction/** - Click-Through Rate Prediction Package  
+- `llm_click_model.py`: Main CTR predictor with provider registry and mock fallback
 - `base_client.py`: Abstract base class for LLM client implementations
 - `openai_client.py`: OpenAI/ChatGPT client implementation
 - `deepseek_client.py`: DeepSeek API client implementation
 - `template_client.py`: Template for implementing new LLM provider clients
-- `llm_click_model.py`: Main predictor with provider registry and mock fallback
+- `__init__.py`: Package initialization and exports
+
+### **Root Level Files**
 - `demo.py`: CLI entry point to run experiments and compute CTR
 - `api.py`: FastAPI web service for REST API access
 - `example_client.py`: Example Python client for the REST API
 - `test_gcs.py`: Test script for Google Cloud Storage integration
 - `requirements.txt`: Python dependency specifications
-- `deploy/`: Complete deployment configuration and scripts
-  - `Dockerfile`: Container configuration for deployment
-  - `DEPLOYMENT.md`: Comprehensive deployment guide  
-  - `deploy.sh` / `deploy.ps1`: Automated deployment scripts
-  - `setup-secrets.sh`: Script for configuring API keys securely
-  - `cloud-run-service.yaml`: Cloud Run service configuration
-  - `.dockerignore`: Docker build context exclusions
+- `workflow.png`: System architecture flowchart
+- `README.md`: This documentation file
+
+### **deploy/** - Deployment Configuration
+- `Dockerfile`: Container configuration for deployment
+- `DEPLOYMENT.md`: Comprehensive deployment guide  
+- `deploy.sh` / `deploy.ps1`: Automated deployment scripts
+- `setup-secrets.sh`: Script for configuring API keys securely
+- `cloud-run-service.yaml`: Cloud Run service configuration
+- `.dockerignore`: Docker build context exclusions
 
 ## Supported Providers
 - **OpenAI**: GPT models (gpt-4o-mini, gpt-4, etc.)

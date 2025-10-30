@@ -6,7 +6,7 @@ Replace 'Template' with your actual provider name and implement the required met
 
 import os
 from typing import Any, Dict, List
-from base_client import BaseLLMClient
+from .base_client import BaseLLMClient
 
 
 

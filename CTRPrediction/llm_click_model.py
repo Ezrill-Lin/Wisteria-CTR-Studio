@@ -5,9 +5,9 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional
 
-from openai_client import OpenAIClient
-from deepseek_client import DeepSeekClient
-# from template_client import TemplateClient  # TODO: Add other clients as needed
+from .openai_client import OpenAIClient
+from .deepseek_client import DeepSeekClient
+# from .template_client import TemplateClient  # TODO: Add other clients as needed
 
 
 def _chunked(seq: List[Any], n: int) -> Iterable[List[Any]]:
@@ -57,7 +57,7 @@ def _mock_predict(ad_text: str, profiles: List[Dict[str, Any]]) -> List[int]:
         List of 0/1 integers aligned with ``profiles``.
     """
     # Import mock prediction logic from base_client to avoid duplication
-    from base_client import _mock_predict as base_mock_predict
+    from .base_client import _mock_predict as base_mock_predict
     return base_mock_predict(ad_text, profiles)
 
 

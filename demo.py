@@ -6,8 +6,8 @@ import os
 import time
 from typing import Any, Dict, List
 
-from sampler import load_identity_bank, sample_identities
-from llm_click_model import LLMClickPredictor
+from SiliconSampling.sampler import load_identity_bank, sample_identities
+from CTRPrediction.llm_click_model import LLMClickPredictor
 
 
 def compute_ctr(clicks: List[int]) -> float:
@@ -64,7 +64,7 @@ def main(args=None):
         parser.add_argument("--ad", required=True, help="Textual advertisement content")
         parser.add_argument("--ad-platform", default="facebook", choices=["facebook", "tiktok", "amazon"], help="Platform where the ad is shown (default: facebook)")
         parser.add_argument("--population-size", type=int, default=1000, help="Number of identities to sample")
-        parser.add_argument("--identity-bank", default=os.path.join("data", "identity_bank.json"), help="Path to identity bank JSON")
+        parser.add_argument("--identity-bank", default=os.path.join("SiliconSampling", "data", "identity_bank.json"), help="Path to identity bank JSON")
         parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
         parser.add_argument("--provider", default="openai", help="LLM provider (default: openai)")
         parser.add_argument("--model", default="gpt-4o-mini", help="LLM model name")
@@ -134,7 +134,7 @@ if __name__ == "__main__":
         args.model = "deepseek-chat" 
         args.use_mock = False  
         args.use_sync = False
-        args.identity_bank = os.path.join("data", "identity_bank.json")
+        args.identity_bank = os.path.join("SiliconSampling", "data", "identity_bank.json")
         args.seed = 42
         args.api_key = None  
         args.out = None  

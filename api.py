@@ -23,8 +23,8 @@ try:
 except ImportError:
     GCS_AVAILABLE = False
 
-from sampler import load_identity_bank, sample_identities
-from llm_click_model import LLMClickPredictor
+from SiliconSampling.sampler import load_identity_bank, sample_identities
+from CTRPrediction.llm_click_model import LLMClickPredictor
 
 
 # Pydantic models for request/response validation
@@ -131,7 +131,7 @@ app = FastAPI(
 )
 
 # Global configuration
-DEFAULT_IDENTITY_BANK_PATH = os.path.join("data", "identity_bank.json")
+DEFAULT_IDENTITY_BANK_PATH = os.path.join("SiliconSampling", "data", "identity_bank.json")
 AVAILABLE_PROVIDERS = ["openai", "deepseek"]
 AVAILABLE_PLATFORMS = ["facebook", "tiktok", "amazon"]
 
