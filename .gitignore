@@ -1,2 +1,7 @@
 Wisteria-AI-CTR-Studio.zip
 *.zip
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
